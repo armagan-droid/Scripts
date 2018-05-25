@@ -1,5 +1,5 @@
 How to use;
-Python3 log-parse.py <listofwords> <startcolumn> <endcolumn> <commaortab> <searchedfileextension>
+Python3 log-parse.py <list of words> <started column> <ended column> <comma or tab> <searched files extension>
 
 For mailenable:
 Python3 log-parse.py ['SMTP-IN','DATA'] 5 6 'tab' '.log'
