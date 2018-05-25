@@ -1,0 +1,8 @@
+How to use;
+Python3 log-parse.py <listofword> <startcolumn> <endcolumn> <commaortab> <searchedfileextension>
+
+For mailenable:
+Python3 log-parse.py ['SMTP-IN','DATA'] 5 6 'tab' '.log'
+
+For exchange:
+Python3 log-parse.py ['DATA'] 5 6 'comma' '.log'
