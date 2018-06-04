@@ -1,3 +1,4 @@
+It gets queue from mailq of postfix command and extracting each of mail and finding 'mail to'.
 How to use;
 
 python3.5 <mail server> <from address> <to address>
