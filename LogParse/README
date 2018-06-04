@@ -1,3 +1,6 @@
+This script parsing files by patterns .
+It supports comma seperated  and tab seperated .
+
 How to use;
 Python3 log-parse.py <list of words> <started column> <ended column> <comma or tab> <searched files extension>
 
