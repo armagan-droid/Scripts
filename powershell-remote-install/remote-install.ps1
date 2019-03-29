@@ -2,7 +2,7 @@ $file = 'C:\salt-agents\Salt-Minion-Py3-AMD64-Setup.exe'
 
 $computers = @("10.1.0.10", "10.1.0.11", "10.1.0.12")
 
-$user = ""administrator"
+$user = "administrator"
 $password = ConvertTo-SecureString "coksikretbirzifre" -AsPlainText -Force
 
 $cred = New-Object System.Management.Automation.PSCredential ($user,$password)
