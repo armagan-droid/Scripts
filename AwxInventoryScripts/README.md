@@ -4,7 +4,7 @@ This python3 script is a custom inventory script for Ansible Awx.
 
 ## Installation
 
-Use the package manager [pip](https://pypi.org/project/pyvcloud/) to install pyvcloud in the awx task container or Dockerfile of the awx task.
+Use the package manager [pip](https://pypi.org/project/pyvcloud/) to install pyvcloud in the awx task container or add to Dockerfile of the awx task.
 
 ```bash
 pip install pyvcloud
