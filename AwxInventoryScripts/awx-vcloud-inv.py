@@ -67,9 +67,12 @@ def get_all_host(host, org, user, password, vdc):
             for vm in currentVapp.get_all_vms():
                 vmName = vm.get('name')
                 vmOs = VM(client, resource=vm)
-                vmIp = currentVapp.get_primary_ip(vmName)
                 vOs = vmOs.get_operating_system_section()
-                if vmIp is not None:
+                try:
+                    vmIp = currentVapp.get_primary_ip(vmName)
+                except:
+                    pass
+                if vmOs.is_powered_on():
                     if vOs.Description in win_os_list:
                         win_list.append(vmName)
                         hostvars.update({vmName:{'ansible_host':vmIp}})
