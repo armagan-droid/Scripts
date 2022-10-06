@@ -1,0 +1,94 @@
+- name: Install sudo package if it hasn't installed.
+  yum:
+    name: sudo
+    state: present
+
+- name: Enable sudo loging.
+  lineinfile:
+    path: /etc/sudoers
+    line: 'Defaults  syslog=local1'
+    insertafter: EOF
+
+- name: Configuring to Rsyslog for sudo loging.
+  lineinfile:
+    path: /etc/rsyslog.conf
+    line: 'local1.* /var/log/sudo.log'
+    insertafter: EOF
+
+- name: Rsyslog is restarting.
+  service:
+    name: rsyslog
+    state: restarted
+
+- name: Getting Privileged commands over root partition.
+  shell: find / -xdev \( -perm -4000 -o -perm -2000 \) -type f | awk '{print  "-a always,exit -F path=" $1 " -F perm=x -F auid>=1000 -F auid!=4294967295  -k privileged" }'
+  register: privi_commands
+
+- name: Priviledge commands adding to audit rules.
+  copy:
+    dest: /etc/audit/rules.d/audit.rules
+    content: "{{ privi_commands.stdout_lines|join('\n') }}"
+
+- name: User/Group information adding to audit rules.
+  blockinfile:
+    path: /etc/audit/rules.d/audit.rules
+    insertafter: EOF
+    block: |
+      -w /etc/group -p wa -k identity 
+      -w /etc/passwd -p wa -k identity 
+      -w /etc/gshadow -p wa -k identity 
+      -w /etc/shadow -p wa -k identity 
+      -w /etc/security/opasswd -p wa -k identity
+
+- name: Modify date and information adding to audit rules.
+  blockinfile:
+    path: /etc/audit/rules.d/audit.rules
+    insertafter: EOF
+    block: |
+      -a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change 
+      -a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change 
+      -a always,exit -F arch=b64 -S clock_settime -k time-change 
+      -a always,exit -F arch=b32 -S clock_settime -k time-change 
+      -w /etc/localtime -p wa -k time-change
+
+- name: Login and logout events adding to audit rules.
+  blockinfile:
+    path: /etc/audit/rules.d/audit.rules
+    insertafter: EOF
+    block: |
+      -w /var/log/lastlog -p wa -k logins 
+      -w /var/run/faillock/ -p wa -k logins
+
+- name: Removing system information from banner.
+  lineinfile:
+    path: /etc/issue.net
+    state: absent
+    regexp: '(\\v|\\r|\\m|\\s|\\S)'
+
+- name: Remote login banner preparing.
+  lineinfile:
+    path: /etc/issue.net
+    line: 'Authorized uses only. All activity may be monitored and reported.'
+    insertafter: EOF
+
+- name: Banner is adding the sshd config.
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#Banner'
+    line: Banner /etc/issue.net
+
+- name: Auditd is restarting.
+  service:
+    name: auditd
+    state: restarted
+
+- name: Blacklist the USB Storage driver module.
+  kernel_blacklist:
+    name: usb-storage
+    state: present
+
+- name: Automounting is disabling.
+  service:
+    name: autofs
+    state: stopped
+    enabled: no
