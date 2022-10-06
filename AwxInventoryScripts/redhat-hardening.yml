@@ -20,44 +20,32 @@
     name: rsyslog
     state: restarted
 
-- name: Getting Privileged commands over root partition.
-  shell: find / -xdev \( -perm -4000 -o -perm -2000 \) -type f | awk '{print  "-a always,exit -F path=" $1 " -F perm=x -F auid>=1000 -F auid!=4294967295  -k privileged" }'
-  register: privi_commands
-
-- name: Priviledge commands adding to audit rules.
-  copy:
-    dest: /etc/audit/rules.d/audit.rules
-    content: "{{ privi_commands.stdout_lines|join('\n') }}"
-
-- name: User/Group information adding to audit rules.
-  blockinfile:
-    path: /etc/audit/rules.d/audit.rules
-    insertafter: EOF
-    block: |
-      -w /etc/group -p wa -k identity 
-      -w /etc/passwd -p wa -k identity 
-      -w /etc/gshadow -p wa -k identity 
-      -w /etc/shadow -p wa -k identity 
-      -w /etc/security/opasswd -p wa -k identity
-
-- name: Modify date and information adding to audit rules.
-  blockinfile:
-    path: /etc/audit/rules.d/audit.rules
-    insertafter: EOF
-    block: |
-      -a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change 
-      -a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change 
-      -a always,exit -F arch=b64 -S clock_settime -k time-change 
-      -a always,exit -F arch=b32 -S clock_settime -k time-change 
-      -w /etc/localtime -p wa -k time-change
-
-- name: Login and logout events adding to audit rules.
+- name: Modify date, information, Login, logout events and User/Group information adding to audit rules.
   blockinfile:
     path: /etc/audit/rules.d/audit.rules
     insertafter: EOF
     block: |
       -w /var/log/lastlog -p wa -k logins 
       -w /var/run/faillock/ -p wa -k logins
+      -a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change 
+      -a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change 
+      -a always,exit -F arch=b64 -S clock_settime -k time-change 
+      -a always,exit -F arch=b32 -S clock_settime -k time-change 
+      -w /etc/localtime -p wa -k time-change
+      -w /etc/group -p wa -k identity 
+      -w /etc/passwd -p wa -k identity 
+      -w /etc/gshadow -p wa -k identity 
+      -w /etc/shadow -p wa -k identity 
+      -w /etc/security/opasswd -p wa -k identity
+
+- name: Getting Privileged commands over root partition.
+  shell: find / -xdev \( -perm -4000 -o -perm -2000 \) -type f | awk '{print  "-a always,exit -F path=" $1 " -F perm=x -F auid>=1000 -F auid!=4294967295  -k privileged" }'
+  register: privi_commands
+
+- name: Priviledge commands adding to audit rules.
+  copy:
+    dest: /etc/audit/rules.d/priviledge-audit.rules
+    content: "{{ privi_commands.stdout_lines|join('\n') }}"
 
 - name: Removing system information from banner.
   lineinfile:
