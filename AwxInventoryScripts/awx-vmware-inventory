@@ -1,0 +1,15 @@
+# Vcenter inventory config yml creates group for each vlan
+```sh
+validate_certs: False
+alias_pattern: "{{ config.name }}"
+host_filters: "{{ guest.guestState == 'running' }}"
+groupby_patterns: "{{ guest.net[0].network}}, {{ guest.guestFamily }}"
+properties:
+  prop01: "config.name"
+  prop02: "guest.hostName"
+  prop03: "guest.ipAddress"
+  prop04: "guest.guestId"
+  prop05: "guest.guestState"
+  prop06: "guest.guestFamily"
+  prop07: "config.annotation"
+```
