@@ -1,0 +1,57 @@
+How to tune Red Hat Enterprise Linux system for mySQL database?
+High memory consumption on mySQL system
+High CPU consumption on host system
+How to configure swap memory for a mySQL database
+Slower than expected IO performance running mySQL on RHEL
+
+Resolution
+Memory settings in /etc/sysctl.conf:
+
+Swapping is not ideal for databases and should be avoided as much as possible.
+Raw
+vm.swappiness = 10
+
+Maximum percentage of active memory that can be dirty pages:
+Raw
+vm.dirty_background_ratio = 3
+Maximum percentage of total memory that can have dirty pages:
+Raw
+vm.dirty_ratio = 40
+How long to keep data in page cache before expiring:
+Raw
+vm.dirty_expire_centisecs = 500
+How often pdflush activates to clean dirty pages in hundredths of a seconds:
+Raw
+vm.dirty_writeback_centisecs = 100
+
+
+Semaphores
+
+Recommended minimum settings for semaphores:
+Raw
+kernel.sem = 250 32000 100 128
+Raw
+- The first value, SEMMSL, is the maximum number of semaphores per semaphore set
+- The second value, SEMMNS, defines the total number of semaphores for the system
+- The third value, SEMOPM, defines the maximum number of semaphore operations per semaphore call
+- The last value, SEMMNI, defines the number of entire semaphore sets for the system
+Edit /etc/security/limits.conf
+
+Open file descriptors for mySQL
+Raw
+#<domain>      <type>  <item>         <value>
+mysql          hard    nofile          10000
+I/O Scheduler
+
+The default CFQ I/O scheduler is appropriate for most workloads, but does not offer optimal performance for database environments
+The deadline scheduler is recommended for physical systems
+The noop scheduler is recommended for virtual systems
+
+Edit /etc/my.cnf
+
+Raw
+innodb_buffer_pool_size  -  If you use Innodb, 70% to 80% of main memory is adequate.
+key_buffer_size  -  If you use MyISAM, approx 30% of main memory is adequate.
+sort_buffer_size  -  256KB to 1MB
+read_buffer_size  -  128KB to 512KB
+read_rnd_buffer_size  -  256KB to 1MB
