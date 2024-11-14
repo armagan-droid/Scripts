@@ -1,0 +1,32 @@
+<%#
+name: Monthly Security Patch Job Configuration
+snippet: false
+-%>
+
+job_configuration = {
+  'name' => 'Monthly Security Patch',
+  'description' => 'Installs security patches only',
+  'template_id' => 'security-patch-template',
+  'recurring_logic' => {
+    'cron_line' => '0 23 * * 6#2', # Her ayın 2. cumartesi 23:00
+    'max_iteration' => nil,  # Süresiz devam et
+    'purpose' => 'security_patching'
+  },
+  'targeting' => {
+    'search_query' => 'hostgroup = Production',
+    'targeting_type' => 'static'
+  },
+  'inputs' => {
+    'reboot_strategy' => 'if_needed',
+    'max_wait_time' => 15
+  },
+  'ssh' => {
+    'effective_user' => 'root'
+  },
+  'execution' => {
+    'concurrency_control' => {
+      'concurrency_level' => 10,
+      'time_span' => 120
+    }
+  }
+}
