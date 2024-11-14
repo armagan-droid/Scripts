@@ -22,18 +22,15 @@ echo "Current system status check..."
 /usr/bin/needs-restarting -r
 current_status=$?
 
-# Yalnızca security errata listesini al
-security_erratas=$(subscription-manager list --available --security-only --matches=*)
-
-# Security yamaları sayısını kontrol et
-if [ -z "$security_erratas" ]; then
-    echo "No security updates available for <%= @host.name %>"
-    exit 0
-fi
-
-echo "Found security updates, proceeding with installation..."
+# Security yamaları kontrol et
+echo "Checking for security updates..."
+<%= render_template('Package Action - SSH Default',
+    :action => 'check-update',
+    :errata_type => 'security'
+) %>
 
 # Security yamaları yükle
+echo "Installing security updates..."
 <%= render_template('Package Errata - SSH Default',
     :errata_type => 'security',
     :errata_status => 'installable'
@@ -65,12 +62,14 @@ reboot_needed=$?
     echo "Reboot strategy set to 'never', skipping reboot check"
 <% end %>
 
-# Uygulanan yamaları kaydet
-INSTALLED_UPDATES=$(yum history info last | grep "Updated")
+# Yüklenen yamaları kaydet
+SECURITY_UPDATES=$(yum history info last | grep "Updated" | grep "security")
 echo "Installed security updates:"
-echo "$INSTALLED_UPDATES"
+echo "$SECURITY_UPDATES"
 
-# Status bilgisini güncelle
-<% if @host.params['last_security_update'] %>
-    <%= @host.params['last_security_update'] = Time.now.to_s %>
-<% end %>
+# Yama sonrası durum kaydı
+date_stamp=$(date '+%Y-%m-%d %H:%M:%S')
+echo "Patch installation completed at: $date_stamp"
+echo "Status: Completed" > /var/log/patch_status.log
+echo "Last Update: $date_stamp" >> /var/log/patch_status.log
+echo "Security Updates Installed: $SECURITY_UPDATES" >> /var/log/patch_status.log
