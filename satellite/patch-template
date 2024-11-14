@@ -1,0 +1,76 @@
+<%#
+name: Security Patch Management
+snippet: false
+model: JobTemplate
+description: "Yalnızca security yamalarını yükler"
+parameter_description:
+  reboot_strategy:
+    type: enum
+    options:
+      - 'always'
+      - 'if_needed'
+      - 'never'
+    description: "Reboot stratejisi"
+  max_wait_time:
+    type: integer
+    description: "Reboot öncesi maksimum bekleme süresi (dakika)"
+-%>
+
+# Pre-check
+echo "Starting security patch installation for <%= @host.name %>"
+echo "Current system status check..."
+/usr/bin/needs-restarting -r
+current_status=$?
+
+# Yalnızca security errata listesini al
+security_erratas=$(subscription-manager list --available --security-only --matches=*)
+
+# Security yamaları sayısını kontrol et
+if [ -z "$security_erratas" ]; then
+    echo "No security updates available for <%= @host.name %>"
+    exit 0
+fi
+
+echo "Found security updates, proceeding with installation..."
+
+# Security yamaları yükle
+<%= render_template('Package Errata - SSH Default',
+    :errata_type => 'security',
+    :errata_status => 'installable'
+) %>
+
+# Reboot gerekli mi kontrol et
+/usr/bin/needs-restarting -r
+reboot_needed=$?
+
+# Reboot stratejisine göre işlem yap
+<% if input('reboot_strategy') == 'always' %>
+    echo "Rebooting system according to 'always' strategy..."
+    <%= render_template('Power Action - SSH Default', :action => 'restart') %>
+<% elsif input('reboot_strategy') == 'if_needed' && @host.params['auto_reboot'] == 'true' %>
+    if [ $reboot_needed -eq 1 ]; then
+        echo "Reboot required, waiting for <%= input('max_wait_time') %> minutes before restart..."
+        sleep <%= input('max_wait_time').to_i * 60 %>
+        <%= render_template('Power Action - SSH Default', :action => 'restart') %>
+    else
+        echo "No reboot required"
+    fi
+<% elsif input('reboot_strategy') == 'if_needed' && @host.params['auto_reboot'] != 'true' %>
+    if [ $reboot_needed -eq 1 ]; then
+        echo "Reboot required but auto_reboot is disabled. Manual reboot needed."
+    else
+        echo "No reboot required"
+    fi
+<% else %>
+    echo "Reboot strategy set to 'never', skipping reboot check"
+<% end %>
+
+# Uygulanan yamaları kaydet
+INSTALLED_UPDATES=$(yum history info last | grep "Updated")
+echo "Installed security updates:"
+echo "$INSTALLED_UPDATES"
+
+# Status bilgisini güncelle
+<% if @host.params['last_security_update'] %>
+    <%= @host.params['last_security_update'] = Time.now.to_s %>
+<% end %>
