@@ -1,0 +1,127 @@
+#!/bin/bash
+# Template Adı: patch_reporting
+# Açıklama: Yama işlemleri için detaylı raporlama oluşturur
+
+# Log dizini tanımla
+LOG_DIR="/var/log/patch_reports"
+REPORT_FILE="$LOG_DIR/patch_report_$(date +%Y%m%d).log"
+
+# Log dizini kontrolü
+mkdir -p $LOG_DIR
+
+# HTML rapor başlangıcı
+cat << EOF > $REPORT_FILE
+<html>
+<head>
+<style>
+    body { font-family: Arial, sans-serif; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .success { color: green; }
+    .warning { color: orange; }
+    .error { color: red; }
+</style>
+</head>
+<body>
+<h2>Patch Installation Report</h2>
+<p><strong>Host:</strong> <%= @host.name %></p>
+<p><strong>Date:</strong> $(date)</p>
+<p><strong>OS:</strong> <%= @host.operatingsystem %></p>
+
+EOF
+
+# Sistem bilgilerini topla
+echo "<h3>System Information</h3>" >> $REPORT_FILE
+echo "<table>" >> $REPORT_FILE
+echo "<tr><th>Item</th><th>Value</th></tr>" >> $REPORT_FILE
+
+# Memory kullanımı
+MEMORY_TOTAL=$(free -h | grep "Mem:" | awk '{print $2}')
+MEMORY_USED=$(free -h | grep "Mem:" | awk '{print $3}')
+echo "<tr><td>Memory Total</td><td>$MEMORY_TOTAL</td></tr>" >> $REPORT_FILE
+echo "<tr><td>Memory Used</td><td>$MEMORY_USED</td></tr>" >> $REPORT_FILE
+
+# Disk kullanımı
+echo "<tr><td>Disk Usage</td><td><pre>" >> $REPORT_FILE
+df -h / | tail -n 1 | awk '{print $5}' >> $REPORT_FILE
+echo "</pre></td></tr>" >> $REPORT_FILE
+
+# Yama bilgileri
+echo "</table>" >> $REPORT_FILE
+echo "<h3>Patch Information</h3>" >> $REPORT_FILE
+echo "<table>" >> $REPORT_FILE
+echo "<tr><th>Package Name</th><th>Old Version</th><th>New Version</th><th>Status</th></tr>" >> $REPORT_FILE
+
+<% if @host.operatingsystem.family == 'RedHat' %>
+    # RHEL sistemler için yama bilgisi
+    yum history | head -n 4 | tail -n 1 | awk '{print $1}' | while read TRANSACTION; do
+        yum history info "$TRANSACTION" | grep -E "Updated|Installed|Erased" | while read line; do
+            PACKAGE=$(echo $line | awk '{print $1}')
+            OLD_VERSION=$(echo $line | awk '{print $2}')
+            NEW_VERSION=$(echo $line | awk '{print $3}')
+            echo "<tr><td>$PACKAGE</td><td>$OLD_VERSION</td><td>$NEW_VERSION</td><td class='success'>Success</td></tr>" >> $REPORT_FILE
+        done
+    done
+<% elsif @host.operatingsystem.family == 'Debian' %>
+    # Debian sistemler için yama bilgisi
+    grep "upgrade" /var/log/dpkg.log | tail -n 10 | while read line; do
+        PACKAGE=$(echo $line | awk '{print $4}')
+        OLD_VERSION=$(echo $line | awk '{print $5}')
+        NEW_VERSION=$(echo $line | awk '{print $6}')
+        echo "<tr><td>$PACKAGE</td><td>$OLD_VERSION</td><td>$NEW_VERSION</td><td class='success'>Success</td></tr>" >> $REPORT_FILE
+    done
+<% end %>
+
+echo "</table>" >> $REPORT_FILE
+
+# Servis durumları
+echo "<h3>Service Status</h3>" >> $REPORT_FILE
+echo "<table>" >> $REPORT_FILE
+echo "<tr><th>Service</th><th>Status</th></tr>" >> $REPORT_FILE
+
+# Önemli servislerin durumunu kontrol et
+SERVICES="sshd httpd postgresql"
+for SERVICE in $SERVICES; do
+    STATUS=$(systemctl is-active $SERVICE 2>/dev/null || echo "inactive")
+    if [ "$STATUS" = "active" ]; then
+        CLASS="success"
+    else
+        CLASS="error"
+    fi
+    echo "<tr><td>$SERVICE</td><td class='$CLASS'>$STATUS</td></tr>" >> $REPORT_FILE
+done
+
+echo "</table>" >> $REPORT_FILE
+
+# Reboot gerekli mi kontrol et
+echo "<h3>System Status</h3>" >> $REPORT_FILE
+echo "<table>" >> $REPORT_FILE
+if [ -f /var/run/reboot-required ]; then
+    echo "<tr><td>Reboot Required</td><td class='warning'>Yes</td></tr>" >> $REPORT_FILE
+else
+    echo "<tr><td>Reboot Required</td><td class='success'>No</td></tr>" >> $REPORT_FILE
+fi
+
+# Uptime bilgisi
+UPTIME=$(uptime -p)
+echo "<tr><td>System Uptime</td><td>$UPTIME</td></tr>" >> $REPORT_FILE
+
+echo "</table>" >> $REPORT_FILE
+
+# Rapor sonlandırma
+cat << EOF >> $REPORT_FILE
+<p><small>Report generated on $(date) by Satellite</small></p>
+</body>
+</html>
+EOF
+
+# Raporu mail olarak gönder (isteğe bağlı)
+<% if @host.params['SEND_REPORT_MAIL'] == 'true' %>
+    MAIL_TO="<%= @host.params['REPORT_MAIL_ADDRESS'] %>"
+    if [ ! -z "$MAIL_TO" ]; then
+        cat $REPORT_FILE | mail -s "Patch Report for <%= @host.name %>" -a "Content-Type: text/html" $MAIL_TO
+    fi
+<% end %>
+
+echo "Rapor oluşturuldu: $REPORT_FILE"
