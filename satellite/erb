@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Hata durumunda scripti durdur
+set -e
+
+# Log dosyası oluştur
+LOGFILE="/var/log/security_patches_<%= Time.now.strftime('%Y%m%d_%H%M%S') %>.log"
+exec 1> >(tee -a "$LOGFILE") 2>&1
+
+echo "Security yama kurulumu başlatılıyor - $(date)"
+echo "Host: <%= @host.name %>"
+echo "OS: <%= @host.operatingsystem %>"
+
+# Security yamalarını listele
+echo "Mevcut security yamaları kontrol ediliyor..."
+<% if @host.operatingsystem.family == 'RedHat' %>
+    # RHEL sistemler için
+    echo "Red Hat Enterprise Linux sistemi tespit edildi"
+    
+    # Önce repoları temizle ve cache'i yenile
+    yum clean all
+    yum makecache
+
+    # Sadece security yamalarını listele
+    UPDATES=$(yum updateinfo list security)
+    
+    if [[ ! -z "$UPDATES" ]]; then
+        echo "Kurulacak security yamaları bulundu"
+        
+        # Yedekleme yapılıp yapılmayacağını kontrol et
+        <% if @host.params['BACKUP_BEFORE_UPDATE'] == 'true' %>
+            echo "Yama öncesi yedekleme yapılıyor..."
+            # Yedekleme komutlarınız buraya
+        <% end %>
+        
+        # Sadece security yamalarını kur
+        yum -y update --security
+        
+        # Yama sonrası gerekli servisleri yeniden başlat
+        <% if @host.params['RESTART_SERVICES'] == 'true' %>
+            echo "Kritik servisler yeniden başlatılıyor..."
+            # Örnek servis restartları
+            <% @host.params['SERVICES_TO_RESTART'].to_s.split(',').each do |service| %>
+                systemctl restart <%= service.strip %>
+            <% end if @host.params['SERVICES_TO_RESTART'] %>
+        <% end %>
+        
+        NEEDS_REBOOT=$(needs-restarting -r)
+        if [ $? -eq 1 ]; then
+            echo "Sistem yeniden başlatma gerektiriyor"
+            <% if @host.params['AUTO_REBOOT'] == 'true' %>
+                echo "Sistem 1 dakika içinde yeniden başlatılacak"
+                shutdown -r +1
+            <% else %>
+                echo "Manuel yeniden başlatma gerekiyor"
+            <% end %>
+        fi
+    else
+        echo "Kurulacak security yaması bulunamadı"
+    fi
+
+<% elsif @host.operatingsystem.family == 'Debian' %>
+    # Debian/Ubuntu sistemler için
+    echo "Debian tabanlı sistem tespit edildi"
+    apt-get update
+    apt-get -y --only-upgrade install $(apt-get --just-print upgrade | grep -i security | awk '{print $2}')
+<% end %>
+
+echo "Security yama kurulumu tamamlandı - $(date)"
+
+# Son durumu raporla
+echo "Yama durumu raporu oluşturuluyor..."
+<% if @host.operatingsystem.family == 'RedHat' %>
+    yum updateinfo summary
+    rpm -qa --last | head -n 10
+<% elsif @host.operatingsystem.family == 'Debian' %>
+    apt list --upgradable
+<% end %>
